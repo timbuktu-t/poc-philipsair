@@ -2,6 +2,7 @@ package philipsair;
 
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.function.Consumer;
 
@@ -9,14 +10,15 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.google.common.base.Strings;
-import com.google.common.io.BaseEncoding;
-
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang.StringUtils;
 import org.eclipse.californium.core.CoapClient;
 import org.eclipse.californium.core.CoapHandler;
 import org.eclipse.californium.core.CoapObserveRelation;
 import org.eclipse.californium.core.CoapResponse;
 import org.eclipse.californium.core.coap.CoAP.ResponseCode;
+import org.eclipse.californium.core.network.config.NetworkConfig;
 import org.eclipse.californium.elements.exception.ConnectorException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +55,9 @@ public final class PhilipsAir {
 
     public void initialize() throws ConnectorException, IOException {
         logger.info("initializing");
+
+        NetworkConfig.getStandard().setString(NetworkConfig.Keys.DEDUPLICATOR, NetworkConfig.Keys.NO_DEDUPLICATOR);
+
         syncClient = new CoapClient("coap", host, 5683, "sys/dev/sync");
         statusClient = new CoapClient("coap", host, 5683, "sys/dev/status");
         controlClient  = new CoapClient("coap", host, 5683, "sys/dev/control");
@@ -191,22 +196,25 @@ public final class PhilipsAir {
     }
 
     private static String toHex(final long value) {
-        return Strings.padStart(Integer.toHexString((int) (value & 0xFFFFFFFF)).toUpperCase(), 8, '0');
+        return StringUtils.leftPad(Integer.toHexString((int) (value & 0xFFFFFFFF)).toUpperCase(), 8, '0');
     }
 
-    private static byte[] fromHexBinary(final String value) {
-        return BaseEncoding.base16().decode(value.toUpperCase());
+    private static byte[] fromHexBinary(final String value) throws DecoderException {
+        return Hex.decodeHex(value.toUpperCase().toCharArray());
     }
 
     private static String toHexBinary(final byte[] binary) {
-        return BaseEncoding.base16().encode(binary);
+        return new String(Hex.encodeHex(binary)).toUpperCase();
     }
 
     private static String toHexBinary(final byte[] binary, final int offset, final int length) {
-        return BaseEncoding.base16().encode(binary, offset, length);
+        return new String(Hex.encodeHex(Arrays.copyOfRange(binary, offset, offset + length))).toUpperCase();
     }
-
+    
     public static void main(final String[] args) throws Exception {
+        // setup java logging
+        System.setProperty( "java.util.logging.config.file", "logging.properties" );
+        java.util.logging.LogManager.getLogManager().readConfiguration();
         // TODO change MYDEVICE below to match the ip address or hostname of your device
         final PhilipsAir philipsAir = new PhilipsAir("MYDEVICE", "JiangPan", System.out::println);
         philipsAir.initialize();
